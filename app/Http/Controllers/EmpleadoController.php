@@ -1,16 +1,16 @@
 <?php
 
 namespace App\Http\Controllers;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 use App\Empleado;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Response;
-use App\Http\Requests\RequestEmpleado;
 use Illuminate\Validation\Rule;
+use App\Horario;
+
 class EmpleadoController extends Controller
 {
 
-    public $empleado = null;
+   
     /**
      * Display a listing of the resource.
      *
@@ -36,22 +36,77 @@ class EmpleadoController extends Controller
         
     }
 
+    public function verHorario($empleado)
+    {
+        $resEmpleado = Empleado::find($empleado);
+        if(isset($resEmpleado->horario_id))
+        {
+            $response = Horario::where('id',$resEmpleado->horario_id)->first();
+
+            $array = array(
+                'id' => $response->id,
+                'categoria' =>$response->categoria,
+                'hora_inicio' => $response->hora_inicio,
+                'hora_fin' => $response->hora_fin,
+                'tolerancia' => $response->tolerancia,
+                'created_at'=> date_format($response->created_at, 'Y-m-d '),
+                'updated_at' => date_format($response->updated_at, 'Y-m-d '));
+           
+            return response()->json(['success' => true,'data' => $array], 200);
+        }else{
+            return response()->json(['success' => false,'data' => []], 200);
+        }
+       
+    }
+
     /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(RequestEmpleado $request)
+    public function store(Request $request)
     {
-
+        $estado = "activado,desactivado";
+        $request->validate([
+            'nombres' => 'required|string',
+            'apellidos' => 'required|string',
+            'dni' => ['min:9','max:9','regex:/^([0-9]+)$/',Rule::unique('empleados','dni')],
+            'correo' => ['required','max:255',Rule::unique('empleados','correo')],
+            'fecha_nacimiento' => 'required|date',
+            'imagen_path'=>'required|image|max:2048|mimes:jpeg,png,svg,jpg,gif',
+            'estado' => "required|in:{$estado}",
+            
+]);
+        $empleado = $request->all();
+        if ($request->hasFile('imagen_path'))
+        {
+             $location =   $this->loadImage($empleado['imagen_path']);
+            $empleado['imagen_path'] = asset('storage/' .$location);
+                      
+        }
     
-        $request->validate();
-
-       $empleado = Empleado::create($request->validated());
+       $data = Empleado::create($empleado);
         
-        return response()->json(['success' => true,'data' => $empleado], 200);
+        return response()->json(['success' => true,'data' => $data,'mensaje' => 'Registrado Correctamente'], 200);
     
+    }
+
+    private function loadImage($image)
+    {
+         $image->getClientOriginalExtension();
+        $location = Storage::disk('public')->put('img',$image);
+        return $location;
+    }
+
+    private function removeImage($imagen_path)
+    {
+        if(!$imagen_path){
+            return;
+        }
+        if(Storage::disk('public')->exists($imagen_path)){
+            Storage::disk('public')->delete($imagen_path);
+        }
     }
 
     /**
@@ -62,8 +117,11 @@ class EmpleadoController extends Controller
      */
     public function show($empleado)
     {
-        $empleados = Empleado::where('cargo','LIKE','%'.$empleado.'%')
-                 ->orWhere('area','LIKE','%'. $empleado.'%')->get();
+        $empleados = Empleado::where('nombres','LIKE','%'.$empleado.'%')
+                 ->orWhere('apellidos','LIKE','%'. $empleado.'%')
+                 ->orWhere('dni','LIKE','%'. $empleado.'%')
+                 ->orWhere('correo','LIKE','%'. $empleado.'%')
+                 ->orWhere('fecha_nacimiento','LIKE','%'. $empleado.'%')->get();
 
      return response()->json(['success' => true,'data' => $empleados], 200);
     }
@@ -77,8 +135,8 @@ class EmpleadoController extends Controller
     public function edit($id)
     {
         $data =  Empleado::findOrFail($id);
-        $this->empleado = $data;
-        return response()->json(['success' => true,'data'=>$data,'test'=> $this->empleado], 200);
+        
+        return response()->json(['success' => true,'data'=>$data], 200);
     }
 
     /**
@@ -91,38 +149,51 @@ class EmpleadoController extends Controller
     public function update(Request $request,Empleado $empleado)
     {
         $estado = "activado,desactivado";
-        $tipo_contrato = "inderminado,temporal,prueba,ocasional";
-     $filas = request()->validate([
+  
+        $request->validate([
                  'nombres' => 'required|string',
                  'apellidos' => 'required|string',
-                 'dni' => ['required_if:pass,=,1','min:9','max:9','regex:/^([0-9]+)$/',Rule::unique('empleados','dni')->ignore($empleado)],
+                 'dni' => ['min:9','max:9','regex:/^([0-9]+)$/',Rule::unique('empleados','dni')->ignore($empleado)],
                  'correo' => ['required','max:255',Rule::unique('empleados','correo')->ignore($empleado)],
+                 'imagen_path'=>['nullable','max:2048'],
                  'fecha_nacimiento' => 'required|date',
-                 'cargo' => 'required',
-                 'area' => 'required',
-                 'fecha_inicio' => 'required|date',
-                 'fecha_fin' => 'required|date|after:fecha_inicio',
-                 'estado' => "required|in:{$estado}",
-                 'tipo_contrato' => "required|in:{$tipo_contrato}",
+                 'estado' => "required|in:{$estado}",         
      ]);
      
+     
+    $filas = $request->all();
+    if ($request->hasFile('imagen_path'))
+    {
+        $path = explode("storage", $empleado['imagen_path']);
+        if(isset($path[1]))  $this->removeImage($path[1]); 
+        
+        $location = $this->loadImage($filas['imagen_path']);
+        $filas['imagen_path'] = asset('storage/' .$location);
+        
+        $empleado->update([
+            'nombres' => $filas['nombres'],
+            'apellidos' => $filas['apellidos'],
+            'correo' => $filas['correo'],
+            'fecha_nacimiento' => $filas['fecha_nacimiento'],
+            'estado' => $filas['estado'],
+            'imagen_path'=>  $filas['imagen_path'],
+     
+        ]);
+        return response()->json(['success' => true,'mensaje' => 'Editado Correctamente','data' => $empleado], 200);          
+    }
+
+   
       
        $empleado->update([
            'nombres' => $filas['nombres'],
            'apellidos' => $filas['apellidos'],
            'correo' => $filas['correo'],
            'fecha_nacimiento' => $filas['fecha_nacimiento'],
-           'cargo' => $filas['cargo'],
-           'area' => $filas['area'],
-           'fecha_inicio' => $filas['fecha_inicio'],
-           'fecha_fin' => $filas['fecha_fin'],
            'estado' => $filas['estado'],
-           'tipo_contrato' => $filas['tipo_contrato'],
-           'fecha_inicio' => $filas['fecha_inicio'],
        ]);
       
          
-         return response()->json(['success' => true,'data' => $empleado], 200);
+         return response()->json(['success' => true,'mensaje' => 'Editado Correctamente','data' => $empleado], 200);
     }
 
     /**
@@ -133,8 +204,17 @@ class EmpleadoController extends Controller
      */
     public function delete($id)
     {
-        Empleado::destroy($id);
-        return response()->json(['success' => true,'msg'=>'Eliminado Satisfactoriamente'], 200);
+        $empleado = Empleado::findOrFail($id);
+        $path = explode("storage", $empleado->imagen_path);
+        if(isset($path[1])){
+            $this->removeImage($path[1]);
+            $empleado->delete();
+            return response()->json(['success' => true,'mensaje'=>'Eliminado Correctamente'], 200);
+        }else{
+            
+            $empleado->delete();
+            return response()->json(['success' => true,'mensaje'=>'Eliminado Correctamente'], 200);
+        }
     }
 
     public function estado(Empleado $empleado)

@@ -2,6 +2,8 @@
 
 use Illuminate\Database\Seeder;
 use  App\Empleado;
+use App\Marcacion;
+use  App\Horario;
 class DatabaseSeeder extends Seeder
 {
     /**
@@ -11,8 +13,17 @@ class DatabaseSeeder extends Seeder
      */
     public function run()
     {
-        factory(Empleado::class, 15)->create();
-        //Empleado::factory()->count(20)->create();
+       
+       
+        $marcacion = factory(Horario::class)->create();
+       
+        $user = factory(Empleado::class)->create([
+            'horario_id' => $marcacion->id
+        ]);
+        factory(Marcacion::class)->create([
+            'empleado_id' =>$user->id,
+        ]);
+       // factory(Empleado::class, 12)->create();
         // $this->call(UserSeeder::class);
     }
 }

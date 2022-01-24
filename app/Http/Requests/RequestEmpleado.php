@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 use Illuminate\Validation\Rule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class RequestEmpleado extends FormRequest
 {
@@ -29,19 +30,20 @@ class RequestEmpleado extends FormRequest
     public function rules()
     {
         $estado = "activado,desactivado";
-        $tipo_contrato = "inderminado,temporal,prueba,ocasional";
+        //$tipo_contrato = "inderminado,temporal,prueba,ocasional";
         return [
              'nombres' => 'required|string',
              'apellidos' => 'required|string',
-             'dni' => ['required_if:pass,=,1','min:9','max:9','regex:/^([0-9]+)$/',Rule::unique('empleados')->ignore($this->request->get('dni'))],
-             'correo' => ['required','max:255',Rule::unique('empleados')->ignore($this->request->get('correo'))],
+             'dni' => ['min:9','max:9','regex:/^([0-9]+)$/',Rule::unique('empleados')],
+             'correo' => ['required','max:255',Rule::unique('empleados')],
              'fecha_nacimiento' => 'required|date',
-             'cargo' => 'required',
-             'area' => 'required',
-             'fecha_inicio' => 'required|date',
-             'fecha_fin' => 'required|date|after:fecha_inicio',
-             'estado' => "required|in:{$estado}",
-             'tipo_contrato' => "required|in:{$tipo_contrato}",
+             'imagen_path'=>'image|max:2048|mimes:jpeg,png,svg,jpg,gif',
+             //'cargo' => 'required',
+             //'area' => 'required',
+             //'fecha_inicio' => 'required|date',
+             //'fecha_fin' => 'required|date|after:fecha_inicio',
+             'estado' => "in:{$estado}",
+             //'tipo_contrato' => "required|in:{$tipo_contrato}",
         ];
     }
 
